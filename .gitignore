@@ -1,5 +1,5 @@
 /pics
 /metric
-/data
+# /data
 *.svg
 __pycache__
