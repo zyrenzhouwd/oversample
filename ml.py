@@ -12,6 +12,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 import xgboost as xgb
 from sklearn.neural_network import MLPClassifier
+from smgo import SMGO
 
 logging.getLogger(sv.__name__).setLevel(logging.CRITICAL)
 
@@ -24,8 +25,8 @@ def oversampling(model_name, x, y, **kwargs):
         x_os, y_os = BorderlineSMOTE(sampling_strategy=kwargs['sampling_strategy'], random_state=0).fit_resample(x, y)
     elif model_name == 'MWMOTE':
         x_os, y_os = MWMOTE(proportion=kwargs['proportion'], random_state=0, n_jobs=4).fit_resample(x, y)
-    elif model_name == 'Eboo':
-        x_os, y_os = oversample_crossover(x, y, kwargs['row_1'], mode='uniform')
+    elif model_name == 'smgo':
+        x_os, y_os = SMGO(r=kwargs['r']).fit_resample(x, y)
     return x_os[x.shape[0]:, :], y_os[x.shape[0]:]
 
 
@@ -52,14 +53,15 @@ if __name__ == '__main__':
     print('>>> Oversampling...')
 
     model = None
-    for method in ['Original', 'SMOTE', 'BorderlineSMOTE', 'MWMOTE', 'Eboo']:
+    for method in ['Original', 'SMOTE', 'BorderlineSMOTE', 'MWMOTE', 'smgo']:
+    # for method in ['smgo']:
         print('>>> Method: {:20s}'.format(method))
         result = {}
         for r in range(1, 11):
             x_os, y_os = None, None
             x_train_new, y_train_new = x_train, y_train
-            if method == 'Eboo':
-                x_os, y_os = oversampling('Eboo', x_train_new, y_train_new, row_1=y_train_new.sum() * (1 + r))
+            if method == 'smgo':
+                x_os, y_os = oversampling('smgo', x_train_new, y_train_new, r=(r + 1) * y_train_new.sum() / (y_train_new.shape[0] - y_train_new.sum()))
             elif method == 'MWMOTE':
                 x_os, y_os = oversampling('MWMOTE', x_train_new, y_train_new, proportion=(r + 1) * y_train_new.sum() / (y_train_new.shape[0] - y_train_new.sum()))
             elif method == 'SMOTE' or method == 'BorderlineSMOTE':
@@ -80,7 +82,7 @@ if __name__ == '__main__':
                 # print('      Class Maj: Precision: {:.5f}  Recall: {:.5f}  F1: {:.5f}'.format(scores[0][0], scores[1][0], scores[2][0]))
                 print('        Class Min: Precision: {:.5f}  Recall: {:.5f}  F1: {:.5f}'.format(scores[0][1], scores[1][1], scores[2][1]))
                 if model.__class__.__name__ not in result:
-                    result[model.__class__.__name__]=[]
+                    result[model.__class__.__name__] = []
                 result[model.__class__.__name__].append([rate, scores[1][1], scores[2][1]])
         for n in result:
             pd.DataFrame(result[n]).to_csv(f'./metric/{n}_{method}.csv', header=None, index=False)
