@@ -43,16 +43,29 @@ def dataset_split(x, y):
 
 if __name__ == '__main__':
     from data_process import process_magic
+    import os
+    import zipfile
+    import datetime
+    from datetime import datetime
 
     print('>>> Processing Data...')
-    maj_limit, min_limit = 12000, 1000
-    x_maj, y_maj, x_min, y_min = process_magic()
-    x_maj, y_maj, x_min, y_min = x_maj[:maj_limit, :], y_maj[:maj_limit], x_min[:min_limit, :], y_min[:min_limit]
-    x_train, x_test, y_train, y_test = dataset_split(np.concatenate([x_maj, x_min]), np.concatenate([y_maj, y_min]))
+    x_train, x_test, y_train, y_test = None, None, None, None
+    if os.path.exists('./x_train.npy') and os.path.exists('./x_test.npy') and os.path.exists('./y_train.npy') and os.path.exists('./y_test.npy'):
+        x_train, x_test, y_train, y_test = np.load('./x_train.npy'), np.load('./x_test.npy'), np.load('./y_train.npy'), np.load('./y_test.npy')
+    else:
+        maj_limit, min_limit = 12000, 1000
+        x_maj, y_maj, x_min, y_min = process_magic()
+        x_maj, y_maj, x_min, y_min = x_maj[:maj_limit, :], y_maj[:maj_limit], x_min[:min_limit, :], y_min[:min_limit]
+        x_train, x_test, y_train, y_test = dataset_split(np.concatenate([x_maj, x_min]), np.concatenate([y_maj, y_min]))
+        np.save('./x_train', x_train)
+        np.save('./x_test', x_test)
+        np.save('./y_train', y_train)
+        np.save('./y_test', y_test)
 
     print('>>> Oversampling...')
 
     model = None
+    params = {'b': 0, 'w': 1, 'k1':3, 'k2': 2, 'k3': 20}
     for method in ['Original', 'SMOTE', 'BorderlineSMOTE', 'MWMOTE', 'smgo']:
     # for method in ['smgo']:
         print('>>> Method: {:20s}'.format(method))
@@ -61,7 +74,7 @@ if __name__ == '__main__':
             x_os, y_os = None, None
             x_train_new, y_train_new = x_train, y_train
             if method == 'smgo':
-                x_os, y_os = oversampling('smgo', x_train_new, y_train_new, r=(r + 1) * y_train_new.sum() / (y_train_new.shape[0] - y_train_new.sum()))
+                x_os, y_os = oversampling('smgo', x_train_new, y_train_new, b=params['b'], w=params['w'], k1=params['k1'], k2=params['k2'], k3=params['k3'], r=(r + 1) * y_train_new.sum() / (y_train_new.shape[0] - y_train_new.sum()))
             elif method == 'MWMOTE':
                 x_os, y_os = oversampling('MWMOTE', x_train_new, y_train_new, proportion=(r + 1) * y_train_new.sum() / (y_train_new.shape[0] - y_train_new.sum()))
             elif method == 'SMOTE' or method == 'BorderlineSMOTE':
@@ -72,6 +85,7 @@ if __name__ == '__main__':
             elif r == 2:
                 break
             for model in [RandomForestClassifier(random_state=0), xgb.XGBClassifier(random_state=0), MLPClassifier([16, 8, 4], random_state=0, max_iter=10000, learning_rate_init=0.01)]:
+            # for model in [RandomForestClassifier(random_state=0)]:
                 print('    Model: {}'.format(model.__class__.__name__))
                 model.fit(x_train_new, y_train_new)
                 pred = model.predict(x_test)
@@ -86,3 +100,5 @@ if __name__ == '__main__':
                 result[model.__class__.__name__].append([rate, scores[1][1], scores[2][1]])
         for n in result:
             pd.DataFrame(result[n]).to_csv(f'./metric/{n}_{method}.csv', header=None, index=False)
+    # with zipfile.ZipFile('metric_{}.zip'.format('-'.join([str(params[k]) for k in params])), 'w') as myzip:
+    #     myzip.write('./metric')

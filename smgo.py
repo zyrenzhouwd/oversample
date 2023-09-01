@@ -11,11 +11,12 @@ from sklearn.neighbors import KDTree, KNeighborsClassifier
 
 
 class SMGO:
-    def __init__(self, w=1, k1=5, k2=2, r=1) -> None:
+    def __init__(self, b=1, w=0.5, k1=5, k2=2, k3=5, r=1) -> None:
         self.w = w
-        self.b = 1
+        self.b = b
         self.k1 = k1
         self.k2 = k2
+        self.k3 = k3
         self.r = float(r)
         self.mode = 'random'
 
@@ -39,7 +40,7 @@ class SMGO:
         # 寻找少类边界
         maj_bl_ind, min_bl_ind = set(), set()
         maj_bl, min_bl = None, None
-        kd_maj, kd_min = KDTree(x_major, metric='euclidean'), KDTree(x_minor, metric='euclidean')
+        kd_maj, kd_min = KDTree(x_major), KDTree(x_minor)
         for i in range(x_minor.shape[0]):
             _, ind = kd_maj.query(x_minor[i].reshape(1, -1), k=self.k1)
             maj_bl_ind |= set(ind.reshape(-1).tolist())
@@ -49,18 +50,19 @@ class SMGO:
             min_bl_ind |= set(ind.reshape(-1).tolist())
         min_bl = x_minor[list(min_bl_ind)]
         # 去除离群点
-        kd_all = KDTree(np.concatenate([x_major, x_minor]), metric='euclidean')
+        if self.k3 != '-1':
+            kd_all = KDTree(np.concatenate([x_major, x_minor]))
 
-        def judge(indexes, min_start):
-            count = 0
-            for i in range(1, indexes.shape[0]):
-                if indexes[i] >= min_start:
-                    count += 1
-            return count == 1
-        tmp = []
-        for i in range(min_bl.shape[0]):
-            tmp.append(judge(kd_all.query(min_bl[i].reshape(1, -1), k=5, return_distance=False).reshape(-1), x_major.shape[0]))
-        min_bl = min_bl[tmp]
+            def judge(indexes, min_start):
+                count = 0
+                for i in range(1, indexes.shape[0]):
+                    if indexes[i] >= min_start:
+                        count += 1
+                return count == 1
+            tmp = []
+            for i in range(min_bl.shape[0]):
+                tmp.append(judge(kd_all.query(min_bl[i].reshape(1, -1), k=self.k3, return_distance=False).reshape(-1), x_major.shape[0]))
+            min_bl = min_bl[tmp]
         # 生成样本列表
         x_gen = []
         count = 0
