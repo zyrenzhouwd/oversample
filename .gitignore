@@ -3,3 +3,5 @@
 # /data
 *.svg
 __pycache__
+*.npy
+*.zip
